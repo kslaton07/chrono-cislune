@@ -58,7 +58,8 @@ FIGURE TITLE: MCC elliptical yield surface in `p-q` space with CSL slope `M` and
 
 The yield curve characterizes the type of deformation the terrain experiences based on its current _p_ and _q_ combination. Note that this curve is an ellipse, which is a modeling choice of MCC to simply capture how combined pressure and shear drive terrain deformation. If the current _p_-_q_ combination is inside the ellipse, the terrain deforms elastically. If it is outside, the terrain yields plastically. The ellipse ends at _p_c_ on the right — the same "history pressure" from before.
 
-The CSL is where the soil fails due to shear stress alone. _M_ is the slope of this line, defined such that the CSL always passes through the top of the ellipse. This intersection captures the stress state where the combination of pressure and shear is just enough to cause plastic deformation.
+The CSL is where the soil fails due to shear stress alone. _M_ is the slope of this line, defined such that the CSL always passes through the top of the ellipse
+(together, _M_ and _p_c_ determine the shape of the ellipse). This intersection between the yeild curve and the CSL captures the stress state where the combination of pressure and shear is just enough to cause plastic deformation.
 
 Connecting back to the previous section: when a _p_-_q_ combination causes the soil to yield, _p_c_ increases and the ellipse grows wider to reflect the new stress history. The shape of the ellipse also varies between terrain types, as _M_ differs from soil to soil.
 
@@ -74,11 +75,15 @@ Below is a summary of all MCC simulation parameters and how they influence terra
 
 - **p_c** (per particle): The preconsolidation pressure — the maximum pressure a particle has ever experienced. Sets the size of the yield ellipse. Larger p_c = larger elastic zone, stiffer early response.
 
+NOTE: This may seem inconsistent with the previous section, where p_c described the entire terrain. In reality, the NCL is a material-wide property, but each particle tracks its own p_c based on its individual stress history. Think of a sandbox — the whole sandbox shares the same NCL, but only the portion you pressed has an elevated p_c.
+
 - **v_lambda**: The specific volume of the terrain at a reference pressure of 1000 Pa on the NCL. Essentially sets the vertical position of the NCL on the compression plane. Determined from lab compression data.
 
-- **Young's Modulus / Poisson's Ratio**: Reference elastic properties. Used to compute the elastic stiffness bounds. Very large values can cause instability in the simulation.
+- **Young's Modulus**: How stiff the material is under stretching/compression. Under elastic deformation in MCC, this helps set the rate of the elastic response. 
 
-- **density**: Bulk density of the terrain. Affects inertia and how pressure and stress are coupled.
+- **Poisson's Ratio**: When you compress something in one direction, it tends to expand sideways, Poisson's ratio describes how much it expands/buldges. It works together with young's modulus to capture elastic behavior (something buldging out but restoring its intial composition). 
+
+- **density**: Bulk density of the terrain. Affects inertia (heavier terrain accelerates slower) and helps determine the initial pressure at each particle (i.e influencing the initial _p_c_ and setting a particles starting position on the NCL). 
 
 Chrono Implementation: General Workflow for Setting Up MCC Terrain
 ------------------------------------------------------------------
