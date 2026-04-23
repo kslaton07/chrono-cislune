@@ -1,4 +1,4 @@
-Chrono::FSI-SPH Modified Cam Clay (MCC) Parameter Guide {#manual_fsi_mcc_rheology}
+[EDITED] Chrono::FSI-SPH Modified Cam Clay (MCC) Parameter Guide {#manual_fsi_mcc_rheology}
 ====================================================================================
 
 \tableofcontents
@@ -26,27 +26,70 @@ Primary references:
   `src/chrono_fsi/sph/physics/SphForceWCSPH.cu`,  
   `src/chrono_fsi/sph/physics/SphDataManager.cu`
 
-Model Sketch
-------------
+Motivation Behind MCC - THE MEMORY OF TERRAIN (PRESSURE)
+--------------------------------------------------------
+In general, terrain has "memory", past interactions alter its composition. Most importantly, the application of pressure can permanently alter the volume of the terrain (i.e. how much it has been compacted).
+
+Below is a "Compression Plane" or "v-ln(p)" plot. It is used to track the behavior described above. It depicts normal consolidation (i.e. soil that hasn't been compressed previously).
 
 <img src="http://www.projectchrono.org/assets/manual/Chrono_FSI-MCC_NCL.png" width="800">
 
-Normal consolidation and swelling behavior in `v-ln(p)` space.
+FIGURE TITLE: Normal consolidation and swelling behavior in `v-ln(p)` space.
+
+As you increase pressure (x-axis), volume decreases (y-axis), shown by the line labeled NCL. If at any point you remove the pressure, the terrain partially restores its volume. This is shown by the "swelling lines."
+
+In actuality, there is a swelling line for every point on the NCL — all parallel, sharing an identical slope of _kappa_. However, only one matters at any given time: the one at _p_c_, the maximum pressure the terrain has ever experienced. _p_c_ determines which swelling line the terrain currently follows. Keep it in mind, as it reappears in the next section!
+
+
+The slopes of the NCL and swelling line (_lambda_ and _kappa_, respectively), determine the overall deformation behavior of the terrain.
+If the terrain were purely elastic, _kappa_ = _lambda_, meaning the volume would fully restore upon removing pressure. However, in the figure above, since _kappa_ < _lambda_, the terrain undergoes plastic (permanent) deformation. Overall, the larger the gap between _lambda_ and _kappa_, the greater the irreversible compaction.
+
+Motivation Behind MCC - THE MEMORY OF TERRAIN (PRESSURE AND SHEAR) 
+-----------------------------------------------------------------
+In the previous section, we only considered normal pressure (like squeezing the terrain) and how that impacts its composition. In reality, there are two types of stress that can cause terrain to permanently deform. Here we introduce shear stress, the second phenomenon that can alter soil composition.
+
+For example, imagine a stick being pushed into sand. The sand directly below the stick compresses due to normal pressure, however the sand along the sides of the stick is forced to "slide past it." This sliding force is shear stress.
+
+Below is a "p-q Plot" or "Stress Space Diagram", which captures how both mean pressure _p_ (squeezing terrain equally from all sides) and shear stress _q_ (sliding or distorting the soil) affect terrain composition.
 
 <img src="http://www.projectchrono.org/assets/manual/Chrono_FSI-MCC_yield.png" width="800">
 
-MCC elliptical yield surface in `p-q` space with CSL slope `M` and cap size `p_c`.
+FIGURE TITLE: MCC elliptical yield surface in `p-q` space with CSL slope `M` and cap size `p_c`.
 
-Quick Start
------------
+The yield curve characterizes the type of deformation the terrain experiences based on its current _p_ and _q_ combination. Note that this curve is an ellipse, which is a modeling choice of MCC to simply capture how combined pressure and shear drive terrain deformation. If the current _p_-_q_ combination is inside the ellipse, the terrain deforms elastically. If it is outside, the terrain yields plastically. The ellipse ends at _p_c_ on the right — the same "history pressure" from before.
+
+The CSL is where the soil fails due to shear stress alone. _M_ is the slope of this line, defined such that the CSL always passes through the top of the ellipse. This intersection captures the stress state where the combination of pressure and shear is just enough to cause plastic deformation.
+
+Connecting back to the previous section: when a _p_-_q_ combination causes the soil to yield, _p_c_ increases and the ellipse grows wider to reflect the new stress history. The shape of the ellipse also varies between terrain types, as _M_ differs from soil to soil.
+
+Chrono Implementation: All MCC Terrain Parameters and Intuition
+-----------------------------------------------------------------
+Below is a summary of all MCC simulation parameters and how they influence terrain behavior.
+
+- **lambda**: Slope of the NCL. Controls how much the terrain permanently compacts under virgin compression. Larger lambda = softer, more compressible terrain.
+
+- **kappa**: Slope of the swelling lines. Controls how much the terrain elastically recovers after pressure is removed. Larger kappa = more elastic springback. Must be smaller than lambda.
+
+- **M**: Slope of the CSL in p-q space. Controls shear strength — how much sliding/distorting force the terrain can resist before failing. Larger M = stronger resistance to shear.
+
+- **p_c** (per particle): The preconsolidation pressure — the maximum pressure a particle has ever experienced. Sets the size of the yield ellipse. Larger p_c = larger elastic zone, stiffer early response.
+
+- **v_lambda**: The specific volume of the terrain at a reference pressure of 1000 Pa on the NCL. Essentially sets the vertical position of the NCL on the compression plane. Determined from lab compression data.
+
+- **Young's Modulus / Poisson's Ratio**: Reference elastic properties. Used to compute the elastic stiffness bounds. Very large values can cause instability in the simulation.
+
+- **density**: Bulk density of the terrain. Affects inertia and how pressure and stress are coupled.
+
+Chrono Implementation: General Workflow for Setting Up MCC Terrain
+------------------------------------------------------------------
 
 1. Set `rheology_model = RheologyCRM::MCC`.
 2. Set all MCC constitutive parameters explicitly: `mcc_M`, `mcc_kappa`, `mcc_lambda`, `mcc_v_lambda`.
 3. Initialize per-particle preconsolidation pressure `p_c0` (via `pc` in `AddSPHParticle`, or callback-based scaling).
 4. Reuse SPH solver settings from `manual_fsi_sph_parameter_selection` (especially artificial viscosity, shifting, free-surface handling, and time-step strategy).
 
-API Map (How To Set MCC Parameters)
------------------------------------
+Chrono Implementation: Specfic API Map for Setting Up MCC Terrain Parameters
+----------------------------------------------------------------------------
 
 Constitutive parameters are set through `ElasticMaterialProperties`:
 
@@ -96,8 +139,8 @@ Code-level note:
 - In `ChFsiProblemSPH.cpp`, `pc` is built as `p0 * pre_pressure_scale0`.
 - In direct `AddSPHParticle`, you provide `pc` explicitly.
 
-MCC Math-to-Code Map
---------------------
+Chrono Implementation: MCC Math-to-Code Map
+-------------------------------------------
 
 Chrono's MCC branch is implemented in `TauEulerStep(...)` (`SphFluidDynamics.cu`) and uses stress-rate terms from
 `CrmRHS(...)` (`SphForceWCSPH.cu`).
@@ -120,8 +163,8 @@ Current Chrono safeguards (important for interpretation):
 - Free-surface particles skip hardening updates and are stress-zeroed.
 - EOS is not used in CRM; pressure is obtained from stress (`p = -(1/3)tr(sigma)`).
 
-Core MCC Parameters
--------------------
+Chrono Implementation: Core MCC Parameters Variable Names and Intuition (Again) 
+-------------------------------------------------------------------------------
 
 Set these through `ElasticMaterialProperties`, plus per-particle `pc`.
 
