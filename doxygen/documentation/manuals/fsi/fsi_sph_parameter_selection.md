@@ -116,6 +116,8 @@ Parameter Cheat Sheet
 | `shifting_diffusion_AFSM` | Diffusion-shifting limiter threshold parameter. | Tune with `AFST` to gate behavior near free-surface-like regions. | `SPHParameters::shifting_diffusion_AFSM`, `SetShiftingDiffusionParameters` |
 | `shifting_diffusion_AFST` | Diffusion-shifting limiter threshold parameter. | Tune with `AFSM` to avoid aggressive shifting near interfaces. | `SPHParameters::shifting_diffusion_AFST`, `SetShiftingDiffusionParameters` |
 
+NOTE: having push and pull can seem useless, as desnity should be enough to make sure that particles are distributed correctly. however, SPH calculates density via neighboring particle counts. Thus, density can be satisfied mathematically, but not pratically. For example, the terrain can be clumps of particles (like popcorn) but that is not the pratical behavior. Thus this pull and pull repels/attracts particles to help keep a pratical distribution. The range is 0 to 1. anything above 0.5 is usually too agressive. 0.2 and 0.3 are good starting points. 
+
 ### E) CRM-specific free-surface and ISPH solver controls
 
 | Parameter | Physical intuition | Practical tuning direction | API |
